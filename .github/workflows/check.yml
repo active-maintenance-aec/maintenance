@@ -97,6 +97,21 @@ jobs:
           Rscript -e 'pak::pkg_install(c("readr", "stringr", "purrr"), ask = FALSE)'
           Rscript ../maintenance/deps.R
 
+      # run_all.R reruns the deposited scripts as a program, and they load packages the
+      # maintained code does not. Fetching the deposit here (run_all.R fetches it again and
+      # finds it verified) lets those be installed too. A fetch that fails is left for
+      # run_all.R to report, since a deposit that will not verify is the urgent case.
+      - name: Install the packages the deposited scripts load
+        working-directory: repo
+        run: |
+          if [ -f download_original.R ]; then
+            if Rscript download_original.R > ../download.log 2>&1; then
+              Rscript ../maintenance/deps.R --deposit
+            else
+              tail -n 20 ../download.log
+            fi
+          fi
+
       - name: Record R and package versions
         working-directory: repo
         run: |
@@ -121,6 +136,14 @@ jobs:
         run: |
           status="${{ steps.run.outputs.status }}"
           first_error=$(grep -m1 -iE '^(Error|error in|Fatal error|.*halted)' ../run_all.log || true)
+          git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' ':(exclude)*.rds' > ../changes.diff
+          # A CSV whose only differences are floating-point noise is restored and counted, not
+          # judged: see compare_csv.py for the tolerance and why.
+          noisy_csv=$(git diff --name-only -- '*.csv' | xargs -r python3 ../maintenance/compare_csv.py)
+          noise_count=$(echo "$noisy_csv" | grep -c . || true)
+          if [ -n "$noisy_csv" ]; then
+            echo "$noisy_csv" | xargs git checkout --
+          fi
           skipped_note=""
           status_csv=ground_truth/archive_run_status.csv
           if [ "${{ inputs.archive_skip_slow }}" = "true" ] && [ -f "$status_csv" ]; then
@@ -138,7 +161,6 @@ jobs:
           all_changed=$(git status --porcelain)
           changed=$(echo "$all_changed" | grep -viE "$figures" || true)
           figures_changed=$(echo "$all_changed" | grep -iE "$figures" | wc -l | tr -d ' ')
-          git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' ':(exclude)*.rds' > ../changes.diff
           {
             echo "## ${{ github.repository }}"
             echo
@@ -154,6 +176,10 @@ jobs:
             if echo "$first_error" | grep -qiE 'md5|checksum|byte size|manifest'; then
               echo
               echo "**The deposit failed verification.** This is the case with a deadline: find out today whether the archive moved, changed, or was withdrawn."
+            fi
+            if [ "$noise_count" != "0" ]; then
+              echo
+              echo "CSVs that differ from the committed copies only by floating-point noise (not judged): $noise_count"
             fi
             if [ "$figures_changed" != "0" ]; then
               echo
