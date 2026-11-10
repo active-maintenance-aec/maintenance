@@ -24,8 +24,8 @@ on:
         description: >
           Skip the deposited scripts the deposit documents as slow when the pipeline reruns
           the archive as a program (ARCHIVE_RUN_SKIP_SLOW=1). For a repository whose full run
-          exceeds GitHub's six-hour job limit; the maintained pipeline still runs whole, and
-          the only change the check accepts is those scripts' rows reading "skipped".
+          exceeds GitHub's six-hour job limit. The maintained pipeline and its ground truth are
+          still judged; the archive rerun's records are left to the local sweep.
         type: boolean
         default: false
 
@@ -135,7 +135,10 @@ jobs:
         working-directory: repo
         run: |
           status="${{ steps.run.outputs.status }}"
-          first_error=$(grep -m1 -iE '^(Error|error in|Fatal error|.*halted)' ../run_all.log || true)
+          first_error=""
+          if [ "$status" != "0" ]; then
+            first_error=$(grep -m1 -iE '^(Error|error in|Fatal error|.*halted)' ../run_all.log || true)
+          fi
           git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' ':(exclude)*.rds' > ../changes.diff
           # A CSV whose only differences are floating-point noise is restored and counted, not
           # judged: see compare_csv.py for the tolerance and why.
@@ -144,13 +147,16 @@ jobs:
           if [ -n "$noisy_csv" ]; then
             echo "$noisy_csv" | xargs git checkout --
           fi
+          # With the deposit's slow scripts skipped, every deposited script downstream of them
+          # fails for want of their output, so the archive rerun's records cannot match a full
+          # run. They are restored and left to the local sweep, which runs the deposit whole;
+          # the maintained pipeline and its ground truth are still judged here.
           skipped_note=""
-          status_csv=ground_truth/archive_run_status.csv
-          if [ "${{ inputs.archive_skip_slow }}" = "true" ] && [ -f "$status_csv" ]; then
-            unexplained=$(git diff -U0 -- "$status_csv" | grep -E '^\+[^+]' | grep -v ',skipped,' || true)
-            if [ -z "$unexplained" ] && ! git diff --quiet -- "$status_csv"; then
-              git checkout -- "$status_csv"
-              skipped_note="The slow deposited scripts were skipped, as configured; their rows in $status_csv were the only change there and were restored."
+          if [ "${{ inputs.archive_skip_slow }}" = "true" ]; then
+            archive_records=$(git diff --name-only -- ground_truth/archive_run_status.csv ground_truth/archive_overwrites.csv)
+            if [ -n "$archive_records" ]; then
+              echo "$archive_records" | xargs git checkout --
+              skipped_note="The deposit's slow scripts were skipped, as configured, so the archive rerun's records ($(echo $archive_records | tr '\n' ' ')) are not judged here; the local sweep runs the deposit whole."
             fi
           fi
           # Figure files are not judged: PDFs and PNGs drawn on Linux are never byte-identical
