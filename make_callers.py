@@ -17,6 +17,11 @@ import sys
 
 CYCLE = 8
 HOUR, MINUTE = 6, 47
+
+# Repositories whose full run exceeds GitHub's six-hour job limit because rerunning the
+# deposited archive as a program takes hours. They skip the deposit's slow scripts on
+# GitHub; the local quarterly sweep still runs them.
+ARCHIVE_SKIP_SLOW = {"hewitt_etal_2024"}
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
 CALLER = """\
@@ -41,6 +46,8 @@ jobs:
       phase: {phase}
 """
 
+SKIP_SLOW_LINE = "      archive_skip_slow: true\n"
+
 
 def next_check(phase, weekday):
     """First date on or after today when this slot falls in its week of the cycle."""
@@ -62,14 +69,18 @@ for i, repo in enumerate(repos):
     phase, weekday = i % CYCLE, i // CYCLE
     workflow_dir = os.path.join(corpus, repo, ".github", "workflows")
     os.makedirs(workflow_dir, exist_ok=True)
+    caller = CALLER.format(cycle=CYCLE, minute=MINUTE, hour=HOUR, cron_day=weekday + 1, phase=phase)
+    if repo in ARCHIVE_SKIP_SLOW:
+        caller += SKIP_SLOW_LINE
     with open(os.path.join(workflow_dir, "maintenance.yml"), "w") as f:
-        f.write(CALLER.format(cycle=CYCLE, minute=MINUTE, hour=HOUR, cron_day=weekday + 1, phase=phase))
+        f.write(caller)
     schedule.append({
         "repo": repo,
         "phase": phase,
         "weekday": WEEKDAYS[weekday],
         "time_utc": f"{HOUR:02d}:{MINUTE:02d}",
         "next_full_check": next_check(phase, weekday),
+        "archive_skip_slow": repo in ARCHIVE_SKIP_SLOW,
     })
 
 with open("schedule.csv", "w", newline="") as f:

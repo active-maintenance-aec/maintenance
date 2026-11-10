@@ -20,6 +20,14 @@ on:
         description: Weeks between full checks.
         type: number
         default: 8
+      archive_skip_slow:
+        description: >
+          Skip the deposited scripts the deposit documents as slow when the pipeline reruns
+          the archive as a program (ARCHIVE_RUN_SKIP_SLOW=1). For a repository whose full run
+          exceeds GitHub's six-hour job limit; the maintained pipeline still runs whole, and
+          the only change the check accepts is those scripts' rows reading "skipped".
+        type: boolean
+        default: false
 
 jobs:
   gate:
@@ -98,6 +106,8 @@ jobs:
       - name: Run run_all.R
         id: run
         working-directory: repo
+        env:
+          ARCHIVE_RUN_SKIP_SLOW: ${{ inputs.archive_skip_slow && '1' || '0' }}
         run: |
           set +e
           Rscript run_all.R > ../run_all.log 2>&1
@@ -111,11 +121,31 @@ jobs:
         run: |
           status="${{ steps.run.outputs.status }}"
           first_error=$(grep -m1 -iE '^(Error|error in|Fatal error|.*halted)' ../run_all.log || true)
-          changed=$(git status --porcelain)
+          skipped_note=""
+          status_csv=ground_truth/archive_run_status.csv
+          if [ "${{ inputs.archive_skip_slow }}" = "true" ] && [ -f "$status_csv" ]; then
+            unexplained=$(git diff -U0 -- "$status_csv" | grep -E '^\+[^+]' | grep -v ',skipped,' || true)
+            if [ -z "$unexplained" ] && ! git diff --quiet -- "$status_csv"; then
+              git checkout -- "$status_csv"
+              skipped_note="The slow deposited scripts were skipped, as configured; their rows in $status_csv were the only change there and were restored."
+            fi
+          fi
+          # Figure files are not judged: PDFs and PNGs drawn on Linux are never byte-identical
+          # to the ones drawn on the Mac that committed them. The numbers behind every figure
+          # are written out as CSVs, and those are judged.
+          figures='\.(pdf|png|svg|jpe?g|eps|tiff?)"?$'
+          all_changed=$(git status --porcelain)
+          changed=$(echo "$all_changed" | grep -viE "$figures" || true)
+          figures_changed=$(echo "$all_changed" | grep -iE "$figures" | wc -l | tr -d ' ')
+          git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' > ../changes.diff
           {
             echo "## ${{ github.repository }}"
             echo
             echo "run_all.R exit status: $status"
+            if [ -n "$skipped_note" ]; then
+              echo
+              echo "$skipped_note"
+            fi
             if [ -n "$first_error" ]; then
               echo
               echo "First error: \`$first_error\`"
@@ -124,9 +154,13 @@ jobs:
               echo
               echo "**The deposit failed verification.** This is the case with a deadline: find out today whether the archive moved, changed, or was withdrawn."
             fi
+            if [ "$figures_changed" != "0" ]; then
+              echo
+              echo "Figure files that differ from the committed copies (not judged): $figures_changed"
+            fi
             if [ -n "$changed" ]; then
               echo
-              echo "Files the run changed or created:"
+              echo "Non-figure files the run changed or created:"
               echo '```'
               echo "$changed"
               echo '```'
@@ -144,4 +178,5 @@ jobs:
           path: |
             run_all.log
             packages.csv
+            changes.diff
           if-no-files-found: ignore
