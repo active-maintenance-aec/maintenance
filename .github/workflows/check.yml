@@ -131,13 +131,14 @@ jobs:
             fi
           fi
           # Figure files are not judged: PDFs and PNGs drawn on Linux are never byte-identical
-          # to the ones drawn on the Mac that committed them. The numbers behind every figure
-          # are written out as CSVs, and those are judged.
-          figures='\.(pdf|png|svg|jpe?g|eps|tiff?)"?$'
+          # to the ones drawn on the Mac that committed them. Nor are .rds files, whose bytes
+          # differ between two runs on one machine. The numbers behind both are written out
+          # as CSVs, and those are judged.
+          figures='\.(pdf|png|svg|jpe?g|eps|tiff?|rds)"?$'
           all_changed=$(git status --porcelain)
           changed=$(echo "$all_changed" | grep -viE "$figures" || true)
           figures_changed=$(echo "$all_changed" | grep -iE "$figures" | wc -l | tr -d ' ')
-          git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' > ../changes.diff
+          git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' ':(exclude)*.rds' > ../changes.diff
           {
             echo "## ${{ github.repository }}"
             echo
@@ -156,7 +157,7 @@ jobs:
             fi
             if [ "$figures_changed" != "0" ]; then
               echo
-              echo "Figure files that differ from the committed copies (not judged): $figures_changed"
+              echo "Figure and .rds files that differ from the committed copies (not judged): $figures_changed"
             fi
             if [ -n "$changed" ]; then
               echo
