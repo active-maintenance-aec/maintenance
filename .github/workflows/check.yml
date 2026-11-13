@@ -154,6 +154,10 @@ jobs:
           # run_timings.csv records elapsed seconds, which differ on every run on every machine,
           # so it is restored rather than judged.
           git diff --name-only -- '*run_timings.csv' | xargs -r git checkout --
+          # Records of rebuilt-figure-versus-deposit comparisons are pixel and byte comparisons,
+          # and Linux rasterizes text with different fonts, so they cannot agree with the Mac
+          # that committed them. They are restored and left to the local sweep.
+          git diff --name-only -- '*ground_truth/archive_overwrites.csv' '*maintained/output/archive_output_comparison.csv' | xargs -r git checkout --
           skipped_note=""
           if [ "${{ inputs.archive_skip_slow }}" = "true" ]; then
             archive_records=$(git diff --name-only -- ground_truth/archive_run_status.csv ground_truth/archive_overwrites.csv)

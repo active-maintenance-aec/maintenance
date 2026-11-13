@@ -4,7 +4,9 @@ A file passes when it has the same lines as the committed copy, each line identi
 its numbers are blanked, and every number within RTOL relative or ATOL absolute of the
 committed one. Linux and macOS round the last bits of a double differently, so a pipeline
 that reproduces exactly on the Mac that committed it moves the twelfth significant digit
-on the runner; no published number is printed to anything like that precision.
+on the runner; no published number is printed to anything like that precision. RTOL is
+1e-5 rather than 1e-6 because a delta-method SE built from a numerical Jacobian moves at
+1e-6 between platforms (coppock_2021's margins() z statistic, 1.28e-6, 2026-11-13).
 
 Usage, from a paper repository's root:
   python3 compare_csv.py <file> [<file> ...]
@@ -15,7 +17,7 @@ import re
 import subprocess
 import sys
 
-RTOL = 1e-6
+RTOL = 1e-5
 ATOL = 1e-6
 NUMBER = re.compile(r"-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
 
