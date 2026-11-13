@@ -151,6 +151,9 @@ jobs:
           # fails for want of their output, so the archive rerun's records cannot match a full
           # run. They are restored and left to the local sweep, which runs the deposit whole;
           # the maintained pipeline and its ground truth are still judged here.
+          # run_timings.csv records elapsed seconds, which differ on every run on every machine,
+          # so it is restored rather than judged.
+          git diff --name-only -- '*run_timings.csv' | xargs -r git checkout --
           skipped_note=""
           if [ "${{ inputs.archive_skip_slow }}" = "true" ]; then
             archive_records=$(git diff --name-only -- ground_truth/archive_run_status.csv ground_truth/archive_overwrites.csv)
