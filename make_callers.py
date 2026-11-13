@@ -22,6 +22,22 @@ HOUR, MINUTE = 6, 47
 # deposited archive as a program takes hours. They skip the deposit's slow scripts on
 # GitHub; the local quarterly sweep still runs them.
 ARCHIVE_SKIP_SLOW = {"hewitt_etal_2024"}
+# Outputs a repository's run cannot reproduce on the runner, restored rather than judged
+# (check.yml's unjudged), and ground-truth tables judged on their verdicts alone
+# (verdicts_only). coppock_2017a: the ictreg NLS bootstrap (seed 343, 2000 draws) fails on
+# about half its resamples and which fail depends on LAPACK rounding (997 converged on the
+# Mac, 990 on the runner), so adjusted SEs move in the third or fourth digit; Alex,
+# 2026-11-13. Its verdicts agree in every row, and verdicts_only keeps that judged.
+UNJUDGED = {
+    "coppock_2017a": [
+        "ground_truth/original_archive_*",
+        "ground_truth/sampler_comparison.csv",
+        "maintained/output/figure_1_*",
+        "maintained/output/table_a1_subgroup_estimates.*",
+        "maintained/output/text_descriptive_claims.csv",
+    ],
+}
+VERDICTS_ONLY = {"coppock_2017a": ["ground_truth/coppock_2017a_ground_truth.csv"]}
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
 CALLER = """\
@@ -72,6 +88,10 @@ for i, repo in enumerate(repos):
     caller = CALLER.format(cycle=CYCLE, minute=MINUTE, hour=HOUR, cron_day=weekday + 1, phase=phase)
     if repo in ARCHIVE_SKIP_SLOW:
         caller += SKIP_SLOW_LINE
+    if repo in UNJUDGED:
+        caller += f'      unjudged: "{" ".join(UNJUDGED[repo])}"\n'
+    if repo in VERDICTS_ONLY:
+        caller += f'      verdicts_only: "{" ".join(VERDICTS_ONLY[repo])}"\n'
     with open(os.path.join(workflow_dir, "maintenance.yml"), "w") as f:
         f.write(caller)
     schedule.append({

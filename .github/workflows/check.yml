@@ -28,6 +28,20 @@ on:
           still judged; the archive rerun's records are left to the local sweep.
         type: boolean
         default: false
+      unjudged:
+        description: >
+          Space-separated git pathspecs of outputs this repository's run cannot reproduce on
+          the runner, restored rather than judged. For outputs that move because of something
+          the runner cannot hold fixed (coppock_2017a's bootstrap converges on a different set
+          of draws under Linux's LAPACK). The local sweep still judges them.
+        type: string
+        default: ""
+      verdicts_only:
+        description: >
+          Space-separated ground-truth CSVs judged on their verdicts alone: restored when only
+          value_script and value_rewrite moved (compare_csv.py --verdicts), judged otherwise.
+        type: string
+        default: ""
 
 jobs:
   gate:
@@ -133,6 +147,9 @@ jobs:
 
       - name: Report
         working-directory: repo
+        env:
+          UNJUDGED: ${{ inputs.unjudged }}
+          VERDICTS_ONLY: ${{ inputs.verdicts_only }}
         run: |
           status="${{ steps.run.outputs.status }}"
           first_error=""
@@ -166,6 +183,25 @@ jobs:
               skipped_note="The deposit's slow scripts were skipped, as configured, so the archive rerun's records ($(echo $archive_records | tr '\n' ' ')) are not judged here; the local sweep runs the deposit whole."
             fi
           fi
+          # Per-repository exemptions, set in make_callers.py. Pathspecs are passed to git
+          # unexpanded (set -f), so a glob matches tracked paths, not files in the runner's cwd.
+          unjudged_note=""
+          if [ -n "$UNJUDGED" ]; then
+            set -f
+            unjudged_files=$(git diff --name-only -- $UNJUDGED)
+            set +f
+            if [ -n "$unjudged_files" ]; then
+              echo "$unjudged_files" | xargs git checkout --
+              unjudged_note="Restored as configured, not judged here: $(echo $unjudged_files | tr '\n' ' ')"
+            fi
+          fi
+          if [ -n "$VERDICTS_ONLY" ]; then
+            verdict_ok=$(git diff --name-only -- $VERDICTS_ONLY | xargs -r python3 ../maintenance/compare_csv.py --verdicts)
+            if [ -n "$verdict_ok" ]; then
+              echo "$verdict_ok" | xargs git checkout --
+              unjudged_note="$unjudged_note${unjudged_note:+ }Reproduced values moved but every verdict agrees: $(echo $verdict_ok | tr '\n' ' ')"
+            fi
+          fi
           # Figure files are not judged: PDFs and PNGs drawn on Linux are never byte-identical
           # to the ones drawn on the Mac that committed them. Nor are .rds files, whose bytes
           # differ between two runs on one machine. The numbers behind both are written out
@@ -181,6 +217,10 @@ jobs:
             if [ -n "$skipped_note" ]; then
               echo
               echo "$skipped_note"
+            fi
+            if [ -n "$unjudged_note" ]; then
+              echo
+              echo "$unjudged_note"
             fi
             if [ -n "$first_error" ]; then
               echo
