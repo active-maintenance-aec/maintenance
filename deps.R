@@ -56,6 +56,11 @@ on_cran <- rownames(available.packages())
 from_cran <- loaded |>
   intersect(on_cran) |>
   setdiff(base_packages)
+# rstan compiles each model on the machine that runs it, against the headers of its
+# LinkingTo packages, and a binary install of rstan does not bring those
+# (blair_coppock_moor_2020: "Boost not found", 2026-11-13).
+compile_time <- list(rstan = c("BH", "RcppEigen", "RcppParallel", "StanHeaders"))
+from_cran <- union(from_cran, unlist(compile_time[intersect(names(compile_time), from_cran)]))
 from_github <- github_sources[intersect(names(github_sources), loaded)]
 not_found <- setdiff(loaded, c(on_cran, names(github_sources), base_packages))
 
