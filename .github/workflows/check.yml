@@ -43,6 +43,24 @@ on:
           value_script and value_rewrite moved (compare_csv.py --verdicts), judged otherwise.
         type: string
         default: ""
+      monte_carlo:
+        description: >
+          Space-separated git pathspecs of CSVs that hold Monte Carlo quantities (MCMC or
+          bootstrap draws that cannot agree across platforms). Restored when every number
+          moved by no more than monte_carlo_atol + monte_carlo_rtol x |value| plus one unit
+          in its last printed place; ground-truth verdicts may flip only on rows inside that
+          band, and float_coverage.csv is restored when its change follows from those flips
+          (compare_csv.py --monte-carlo). Judged otherwise.
+        type: string
+        default: ""
+      monte_carlo_rtol:
+        description: Relative Monte Carlo tolerance, sized per repository from measured moves.
+        type: string
+        default: "0"
+      monte_carlo_atol:
+        description: Absolute Monte Carlo tolerance, sized per repository from measured moves.
+        type: string
+        default: "0"
 
 jobs:
   gate:
@@ -151,6 +169,9 @@ jobs:
         env:
           UNJUDGED: ${{ inputs.unjudged }}
           VERDICTS_ONLY: ${{ inputs.verdicts_only }}
+          MONTE_CARLO: ${{ inputs.monte_carlo }}
+          MC_RTOL: ${{ inputs.monte_carlo_rtol }}
+          MC_ATOL: ${{ inputs.monte_carlo_atol }}
         run: |
           status="${{ steps.run.outputs.status }}"
           first_error=""
@@ -201,6 +222,16 @@ jobs:
             if [ -n "$verdict_ok" ]; then
               echo "$verdict_ok" | xargs git checkout --
               unjudged_note="$unjudged_note${unjudged_note:+ }Reproduced values moved but every verdict agrees: $(echo $verdict_ok | tr '\n' ' ')"
+            fi
+          fi
+          if [ -n "$MONTE_CARLO" ]; then
+            set -f
+            mc_changed=$(git diff --name-only -- $MONTE_CARLO)
+            set +f
+            mc_ok=$(echo "$mc_changed" | xargs -r python3 ../maintenance/compare_csv.py --monte-carlo "$MC_RTOL" "$MC_ATOL")
+            if [ -n "$mc_ok" ]; then
+              echo "$mc_ok" | xargs git checkout --
+              unjudged_note="$unjudged_note${unjudged_note:+ }Monte Carlo quantities moved within the configured band (rtol $MC_RTOL, atol $MC_ATOL): $(echo $mc_ok | tr '\n' ' ')"
             fi
           fi
           # Figure files are not judged: PDFs and PNGs drawn on Linux are never byte-identical
