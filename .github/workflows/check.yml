@@ -24,7 +24,8 @@ on:
         description: >
           Skip the deposited scripts the deposit documents as slow when the pipeline reruns
           the archive as a program (ARCHIVE_RUN_SKIP_SLOW=1). For a repository whose full run
-          exceeds GitHub's six-hour job limit. The maintained pipeline and its ground truth are
+          exceeds GitHub's six-hour job limit, or whose deposited scripts need more memory
+          than the runner's 16 GB. The maintained pipeline and its ground truth are
           still judged; the archive rerun's records are left to the local sweep.
         type: boolean
         default: false

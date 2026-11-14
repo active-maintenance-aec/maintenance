@@ -18,10 +18,12 @@ import sys
 CYCLE = 8
 HOUR, MINUTE = 6, 47
 
-# Repositories whose full run exceeds GitHub's six-hour job limit because rerunning the
-# deposited archive as a program takes hours. They skip the deposit's slow scripts on
-# GitHub; the local quarterly sweep still runs them.
-ARCHIVE_SKIP_SLOW = {"hewitt_etal_2024"}
+# Repositories whose rerun of the deposited archive as a program does not fit on a GitHub
+# runner: hewitt_etal_2024's takes hours, past the six-hour job limit, and two of
+# aggarwal_etal_2023's deposited scripts peak at 12.3 and 10.3 GB against the runner's
+# 16 GB. They skip those deposited scripts on GitHub; the local quarterly sweep still
+# runs them.
+ARCHIVE_SKIP_SLOW = {"aggarwal_etal_2023", "hewitt_etal_2024"}
 # Outputs a repository's run cannot reproduce on the runner, restored rather than judged
 # (check.yml's unjudged), and ground-truth tables judged on their verdicts alone
 # (verdicts_only). coppock_2017a: the ictreg NLS bootstrap (seed 343, 2000 draws) fails on
