@@ -46,12 +46,15 @@ VERDICTS_ONLY = {"coppock_2017a": ["ground_truth/coppock_2017a_ground_truth.csv"
 # blair_coppock_moor_2020: the Stan meta-analysis; run 43523168023 moved figure 4 and
 # Table 4 by at most 0.0056, and atol 0.026 is the widest of the claims gate's bands
 # (3.42 x sqrt(2) x MCSE, maintained/mc_error.csv). coppock_2017a: the Table A1 bootstrap
-# SEs; run 43523035915 moved them by at most 0.99% relative, so rtol 0.02.
+# SEs; run 43523035915 moved them by at most 0.99% relative, so rtol 0.02. blair's ground
+# truth holds its text claims in points (x 100), so the same band is 2.6 there; run
+# 43614902396 moved them by at most 0.198. Its Table 4 rows repeat figure 4's values, which
+# are judged at 0.026, and the claims gate judges every text claim at printed precision.
 MONTE_CARLO = {
     "blair_coppock_moor_2020": ([
         "maintained/output/figure_4_meta_estimates.csv",
         "maintained/output/table_4_meta_summary_cat.csv",
-        "ground_truth/blair_coppock_moor_2020_ground_truth.csv",
+        "ground_truth/blair_coppock_moor_2020_ground_truth.csv=0:2.6",
     ], "0", "0.026"),
     "coppock_2017a": (["ground_truth/coppock_2017a_ground_truth.csv"], "0.02", "0"),
 }

@@ -45,7 +45,8 @@ on:
         default: ""
       monte_carlo:
         description: >
-          Space-separated git pathspecs of CSVs that hold Monte Carlo quantities (MCMC or
+          Space-separated git pathspecs, each optionally suffixed =RTOL:ATOL for a file on
+          its own scale, of CSVs that hold Monte Carlo quantities (MCMC or
           bootstrap draws that cannot agree across platforms). Restored when every number
           moved by no more than monte_carlo_atol + monte_carlo_rtol x |value| plus one unit
           in its last printed place; ground-truth verdicts may flip only on rows inside that
@@ -225,10 +226,7 @@ jobs:
             fi
           fi
           if [ -n "$MONTE_CARLO" ]; then
-            set -f
-            mc_changed=$(git diff --name-only -- $MONTE_CARLO)
-            set +f
-            mc_ok=$(echo "$mc_changed" | xargs -r python3 ../maintenance/compare_csv.py --monte-carlo "$MC_RTOL" "$MC_ATOL")
+            mc_ok=$(python3 ../maintenance/compare_csv.py --monte-carlo-spec "$MONTE_CARLO" "$MC_RTOL" "$MC_ATOL")
             if [ -n "$mc_ok" ]; then
               echo "$mc_ok" | xargs git checkout --
               unjudged_note="$unjudged_note${unjudged_note:+ }Monte Carlo quantities moved within the configured band (rtol $MC_RTOL, atol $MC_ATOL): $(echo $mc_ok | tr '\n' ' ')"

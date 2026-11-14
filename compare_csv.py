@@ -26,7 +26,11 @@ of flips there.
 
 Usage, from a paper repository's root:
   python3 compare_csv.py [--verdicts | --monte-carlo RTOL ATOL] <file> [<file> ...]
-Prints the files that pass, one per line, and explains the rest on stderr.
+  python3 compare_csv.py --monte-carlo-spec "<entry> ..." RTOL ATOL
+An entry is a git pathspec, or pathspec=RTOL:ATOL for a file on its own scale (blair's
+ground truth holds text claims in points beside Table 4 cells in proportions); the spec
+form judges each changed file the entries match. Prints the files that pass, one per
+line, and explains the rest on stderr.
 """
 
 import csv
@@ -198,18 +202,30 @@ def coverage_follows_flips(flips):
     return True
 
 
+def changed(pathspec):
+    out = subprocess.run(["git", "diff", "--name-only", "--", pathspec],
+                         capture_output=True, text=True).stdout
+    return [line for line in out.splitlines() if line]
+
+
 args = sys.argv[1:]
-if args and args[0] == "--monte-carlo":
-    rtol, atol, args = float(args[1]), float(args[2]), args[3:]
+if args and args[0] in ("--monte-carlo", "--monte-carlo-spec"):
+    if args[0] == "--monte-carlo":
+        rtol, atol = float(args[1]), float(args[2])
+        jobs = [(path, rtol, atol) for path in args[3:]]
+    else:
+        jobs = []
+        for entry in args[1].split():
+            pathspec, _, tols = entry.partition("=")
+            rtol, atol = (float(x) for x in tols.split(":")) if tols else (float(args[2]), float(args[3]))
+            jobs += [(path, rtol, atol) for path in changed(pathspec)]
     flips = {}
-    for path in args:
+    for path, rtol, atol in jobs:
         if monte_carlo(path, rtol, atol, flips):
             print(path)
     if flips:
         print(f"Verdicts flipped inside the Monte Carlo band: {flips}", file=sys.stderr)
-        changed = subprocess.run(["git", "diff", "--name-only", "--", COVERAGE],
-                                 capture_output=True, text=True).stdout.strip()
-        if changed and coverage_follows_flips(flips):
+        if changed(COVERAGE) and coverage_follows_flips(flips):
             print(COVERAGE)
     sys.exit(0)
 check = only_noise
