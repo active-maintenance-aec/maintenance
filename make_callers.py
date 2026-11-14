@@ -1,7 +1,7 @@
 """Write every corpus repository's maintenance caller, and this repository's schedule.
 
 Slots go in alphabetical order. Repository i checks in week i % 8 of the eight-week
-cycle, on weekday i // 8 (Monday to Friday) at 06:47 UTC, so each week carries five full
+cycle, on weekday i // 8 (Monday to Saturday) at 06:47 UTC, so each week carries up to six full
 checks, one a day, and every repository is checked once every 56 days. Minute 47 keeps
 clear of the top of the hour, when GitHub delays scheduled runs most, and of the R
 packages' :23 slots.
@@ -13,6 +13,7 @@ Usage, from this repository's root:
 import csv
 import datetime as dt
 import os
+import subprocess
 import sys
 
 CYCLE = 8
@@ -40,7 +41,7 @@ UNJUDGED = {
     ],
 }
 VERDICTS_ONLY = {"coppock_2017a": ["ground_truth/coppock_2017a_ground_truth.csv"]}
-WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 CALLER = """\
 # Active maintenance check: reruns run_all.R on current R and CRAN packages every
@@ -78,7 +79,17 @@ def next_check(phase, weekday):
 
 
 corpus = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else "~/git_projects/active_maintenance")
-repos = sorted(d for d in os.listdir(corpus) if os.path.isdir(os.path.join(corpus, d, ".git")))
+# Only published repositories take a slot: a local repository with no origin has no
+# GitHub workflow to run, and slotting it would move every repository after it.
+def published(d):
+    path = os.path.join(corpus, d)
+    if not os.path.isdir(os.path.join(path, ".git")):
+        return False
+    remote = subprocess.run(["git", "-C", path, "remote", "get-url", "origin"], capture_output=True)
+    return remote.returncode == 0
+
+
+repos = sorted(d for d in os.listdir(corpus) if published(d))
 if len(repos) > CYCLE * len(WEEKDAYS):
     sys.exit(f"{len(repos)} repositories do not fit in {CYCLE * len(WEEKDAYS)} slots")
 

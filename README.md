@@ -13,4 +13,4 @@ The run log and the installed package versions are attached to each run as an ar
 
 ## Schedule
 
-`schedule.csv` lists each repository's week in the cycle, its weekday, and its next full check. Five repositories are checked each week, one a day, Monday to Friday at 06:47 UTC. `make_callers.py` writes the callers and the schedule; rerun it when a repository is added.
+`schedule.csv` lists each repository's week in the cycle, its weekday, and its next full check. Up to six repositories are checked each week, one a day, Monday to Saturday at 06:47 UTC. `make_callers.py` writes the callers and the schedule; rerun it when a repository is added.
