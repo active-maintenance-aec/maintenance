@@ -169,8 +169,22 @@ jobs:
           ARCHIVE_RUN_SKIP_SLOW: ${{ inputs.archive_skip_slow && '1' || '0' }}
           MAINTAINED_SKIP: ${{ inputs.maintained_skip }}
         run: |
+          # run_all.R runs in its own cgroup capped at 14 GB of the runner's 16, so a script
+          # that needs more is killed alone (exit 137) and the runner survives to report it.
+          # Uncapped, the runner itself is starved, GitHub reports "lost communication", and
+          # no log survives (blair_cooper_coppock_humphreys_2019, 2026-11-15). sudo -E keeps
+          # setup-r's environment; --uid runs R as the runner user. If systemd-run cannot make
+          # the scope, the run goes uncapped and says so.
+          cap="sudo -E env PATH=$PATH systemd-run --scope --quiet -p MemoryMax=14G --uid=$(id -u) --gid=$(id -g)"
+          if $cap true > /dev/null 2>&1; then
+            echo "memory_cap=14G" >> "$GITHUB_OUTPUT"
+          else
+            echo "systemd-run could not make a capped scope; running run_all.R uncapped."
+            cap=""
+            echo "memory_cap=none" >> "$GITHUB_OUTPUT"
+          fi
           set +e
-          Rscript run_all.R > ../run_all.log 2>&1
+          $cap Rscript run_all.R > ../run_all.log 2>&1
           status=$?
           set -e
           echo "status=$status" >> "$GITHUB_OUTPUT"
@@ -190,6 +204,12 @@ jobs:
           first_error=""
           if [ "$status" != "0" ]; then
             first_error=$(grep -m1 -iE '^(Error|error in|Fatal error|.*halted)' ../run_all.log || true)
+            # A kill leaves no R error. Name the cap and the last script run_all.R said it was
+            # starting, when it prints "run_all: starting <path>" lines.
+            if [ "$status" = "137" ] && [ -z "$first_error" ]; then
+              last_started=$(grep 'run_all: starting ' ../run_all.log | tail -n 1 | sed 's/.*run_all: starting //; s/"$//')
+              first_error="run_all.R was killed (exit 137), most likely at the ${{ steps.run.outputs.memory_cap }} memory cap${last_started:+, during $last_started}"
+            fi
           fi
           git diff -- . ':(exclude)*.pdf' ':(exclude)*.png' ':(exclude)*.rds' > ../changes.diff
           # A CSV whose only differences are floating-point noise is restored and counted, not
