@@ -25,6 +25,27 @@ HOUR, MINUTE = 6, 47
 # 16 GB. They skip those deposited scripts on GitHub; the local quarterly sweep still
 # runs them.
 ARCHIVE_SKIP_SLOW = {"aggarwal_etal_2023", "hewitt_etal_2024"}
+# Maintained scripts that need more memory than the runner's 16 GB (check.yml's
+# maintained_skip); run_all.R skips them under MAINTAINED_SKIP and their committed outputs
+# stand. The org is on GitHub's free plan, so no larger runner exists; Alex, 2026-11-14:
+# "skip heavy scripts on CI". Each entry is a peak measured with MC_CORES=4 (3 workers, as
+# on the 4-core runner), as the summed RSS of the R process tree, which overcounts pages
+# forked workers share and so errs toward skipping.
+# blair_cooper_coppock_humphreys_2019, measured 2026-11-15 (peak GB, Mac seconds): table_a7_qca
+# 31.5 (2843 s), table_a12_nested_analysis 31.7, table_a15_model_based_estimands 27.8,
+# table_a18_discovery 19.6, table_a20_bs_exaggeration 26.1, table_a21_bs_covariate_adjustment
+# 30.9 (28796 s, past the six-hour job limit on its own). Under 14 GB and still run: table_a19
+# 13.7, table_a16 13.2, figure_1 11.5, run_archive 10.1. Table in the repo's notes.md.
+MAINTAINED_SKIP = {
+    "blair_cooper_coppock_humphreys_2019": [
+        "maintained/table_a7_qca.R",
+        "maintained/table_a12_nested_analysis.R",
+        "maintained/table_a15_model_based_estimands.R",
+        "maintained/table_a18_discovery.R",
+        "maintained/table_a20_bs_exaggeration.R",
+        "maintained/table_a21_bs_covariate_adjustment.R",
+    ],
+}
 # Outputs a repository's run cannot reproduce on the runner, restored rather than judged
 # (check.yml's unjudged), and ground-truth tables judged on their verdicts alone
 # (verdicts_only). coppock_2017a: the ictreg NLS bootstrap (seed 343, 2000 draws) fails on
@@ -118,6 +139,8 @@ for i, repo in enumerate(repos):
     caller = CALLER.format(cycle=CYCLE, minute=MINUTE, hour=HOUR, cron_day=weekday + 1, phase=phase)
     if repo in ARCHIVE_SKIP_SLOW:
         caller += SKIP_SLOW_LINE
+    if repo in MAINTAINED_SKIP:
+        caller += f'      maintained_skip: "{" ".join(MAINTAINED_SKIP[repo])}"\n'
     if repo in UNJUDGED:
         caller += f'      unjudged: "{" ".join(UNJUDGED[repo])}"\n'
     if repo in VERDICTS_ONLY:
@@ -136,6 +159,7 @@ for i, repo in enumerate(repos):
         "time_utc": f"{HOUR:02d}:{MINUTE:02d}",
         "next_full_check": next_check(phase, weekday),
         "archive_skip_slow": repo in ARCHIVE_SKIP_SLOW,
+        "maintained_skip": " ".join(MAINTAINED_SKIP.get(repo, [])),
     })
 
 with open("schedule.csv", "w", newline="") as f:

@@ -29,6 +29,16 @@ on:
           still judged; the archive rerun's records are left to the local sweep.
         type: boolean
         default: false
+      maintained_skip:
+        description: >
+          Space-separated repository-relative paths of maintained scripts that need more
+          memory than the runner's 16 GB, passed to run_all.R as MAINTAINED_SKIP. run_all.R
+          does not source them and prints one "MAINTAINED_SKIP: skipped <path>" line for
+          each. Their committed outputs stand unchanged, so nothing they write is judged
+          here, and scripts downstream of them read the committed files. The local sweep
+          runs them.
+        type: string
+        default: ""
       unjudged:
         description: >
           Space-separated git pathspecs of outputs this repository's run cannot reproduce on
@@ -157,6 +167,7 @@ jobs:
         working-directory: repo
         env:
           ARCHIVE_RUN_SKIP_SLOW: ${{ inputs.archive_skip_slow && '1' || '0' }}
+          MAINTAINED_SKIP: ${{ inputs.maintained_skip }}
         run: |
           set +e
           Rscript run_all.R > ../run_all.log 2>&1
@@ -173,6 +184,7 @@ jobs:
           MONTE_CARLO: ${{ inputs.monte_carlo }}
           MC_RTOL: ${{ inputs.monte_carlo_rtol }}
           MC_ATOL: ${{ inputs.monte_carlo_atol }}
+          MAINTAINED_SKIP: ${{ inputs.maintained_skip }}
         run: |
           status="${{ steps.run.outputs.status }}"
           first_error=""
@@ -198,6 +210,19 @@ jobs:
           # and Linux rasterizes text with different fonts, so they cannot agree with the Mac
           # that committed them. They are restored and left to the local sweep.
           git diff --name-only -- '*ground_truth/archive_overwrites.csv' '*maintained/output/archive_output_comparison.csv' | xargs -r git checkout --
+          # Maintained scripts skipped for memory never ran, so their committed outputs are
+          # unchanged and nothing needs restoring. The note names them, and says so when
+          # run_all.R printed fewer skip lines than were configured: a run_all.R that ignores
+          # MAINTAINED_SKIP runs the script anyway, and the runner is what stops it.
+          maintained_note=""
+          if [ -n "$MAINTAINED_SKIP" ]; then
+            configured=$(echo $MAINTAINED_SKIP | wc -w | tr -d ' ')
+            honoured=$(grep -c 'MAINTAINED_SKIP: skipped ' ../run_all.log || true)
+            maintained_note="Not run here, as configured (they need more than the runner's 16 GB): $MAINTAINED_SKIP. Their committed outputs stand and are not judged here; the local sweep runs them."
+            if [ "$honoured" != "$configured" ]; then
+              maintained_note="$maintained_note run_all.R reported $honoured of the $configured skips, so it does not honour MAINTAINED_SKIP in full."
+            fi
+          fi
           skipped_note=""
           if [ "${{ inputs.archive_skip_slow }}" = "true" ]; then
             archive_records=$(git diff --name-only -- ground_truth/archive_run_status.csv ground_truth/archive_overwrites.csv)
@@ -247,6 +272,10 @@ jobs:
             if [ -n "$skipped_note" ]; then
               echo
               echo "$skipped_note"
+            fi
+            if [ -n "$maintained_note" ]; then
+              echo
+              echo "$maintained_note"
             fi
             if [ -n "$unjudged_note" ]; then
               echo
