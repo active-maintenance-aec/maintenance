@@ -28,20 +28,28 @@ ARCHIVE_SKIP_SLOW = {"aggarwal_etal_2023", "hewitt_etal_2024"}
 # Maintained scripts that need more memory than the runner's 16 GB (check.yml's
 # maintained_skip); run_all.R skips them under MAINTAINED_SKIP and their committed outputs
 # stand. The org is on GitHub's free plan, so no larger runner exists; Alex, 2026-11-14:
-# "skip heavy scripts on CI". Each entry is a peak measured with MC_CORES=4 (3 workers, as
-# on the 4-core runner), as the summed RSS of the R process tree, which overcounts pages
-# forked workers share and so errs toward skipping.
-# blair_cooper_coppock_humphreys_2019, measured 2026-11-15 (peak GB, Mac seconds): table_a7_qca
-# 31.5 (2843 s), table_a12_nested_analysis 31.7, table_a15_model_based_estimands 27.8,
-# table_a18_discovery 19.6, table_a20_bs_exaggeration 26.1, table_a21_bs_covariate_adjustment
-# 30.9 (28796 s, past the six-hour job limit on its own). Under 14 GB and still run: table_a19
-# 13.7, table_a16 13.2, figure_1 11.5, run_archive 10.1. Table in the repo's notes.md.
+# "skip heavy scripts on CI". check.yml caps run_all.R at 14 GB, so a script missing from
+# a list is killed with its name in the report rather than taking the runner down.
+# blair_cooper_coppock_humphreys_2019, measured 2026-11-15 on the Mac: peak memory footprint
+# with one worker (/usr/bin/time -l, which counts the pages macOS compresses; plain RSS does
+# not, and read figure_1 at 11.5 GB when the capped runner killed it past 14 GB). In GiB:
+# table_a5 39.6, figure_1 24.3, table_a2 19.7, table_a16 14.4, table_a19 14.1. Six more read
+# 19.6 to 31.7 GB as summed process-tree RSS with three workers and were not remeasured:
+# table_a7, a12, a15, a18_discovery, a20, a21 (a21 also ran 8 h, past the six-hour limit).
+# Under 14: table_a1, a3, a17 about 7.1; the rest under 1. run_archive.R's children are
+# not counted by the footprint, and read 10.1 GB summed. Table in the repo's
+# ground_truth/ci_memory_peaks.csv. Alex, 2026-11-15: Figure 1 may leave the CI run.
 MAINTAINED_SKIP = {
     "blair_cooper_coppock_humphreys_2019": [
+        "maintained/figure_1_experimental_designs.R",
+        "maintained/table_a2_working_example_census.R",
+        "maintained/table_a5_process_tracing.R",
         "maintained/table_a7_qca.R",
         "maintained/table_a12_nested_analysis.R",
         "maintained/table_a15_model_based_estimands.R",
+        "maintained/table_a16_matching.R",
         "maintained/table_a18_discovery.R",
+        "maintained/table_a19_bs_diagnosis.R",
         "maintained/table_a20_bs_exaggeration.R",
         "maintained/table_a21_bs_covariate_adjustment.R",
     ],
