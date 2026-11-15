@@ -16,6 +16,19 @@ github_sources <- c(
   interference = "szonszein/interference"
 )
 
+# Packages on CRAN whose CRAN release cannot run under the current versions of what
+# it depends on, installed instead from a pinned commit of their unreleased fix ----
+# Each entry is temporary and comes out when the fix reaches CRAN. DesignLibrary
+# 0.1.10 builds its designers with declare_potential_outcomes(), which DeclareDesign
+# 2.0.0 made defunct; the 2.0.0 rewrite on the RDrewrite branch ports them
+# (blair_cooper_coppock_humphreys_2019, 2026-11-14). The deposit pass uses the same
+# source, so the deposit's scripts are recorded under the code the maintained
+# scripts ran under.
+github_overrides <- c(
+  DesignLibrary = "DeclareDesign/DesignLibrary@21ac70ae15d13db8c24ea39eea795501a8685f42"
+)
+github_sources <- c(github_sources, github_overrides)
+
 # Packages the code loads ----
 # Only code counts: comments and the prose of a .qmd name retired packages (commarobust,
 # maptools) in the course of explaining what replaced them. original/ and
@@ -55,7 +68,7 @@ on_cran <- rownames(available.packages())
 
 from_cran <- loaded |>
   intersect(on_cran) |>
-  setdiff(base_packages)
+  setdiff(c(base_packages, names(github_overrides)))
 # rstan compiles each model on the machine that runs it, against the headers of its
 # LinkingTo packages, and a binary install of rstan does not bring those
 # (blair_coppock_moor_2020: "Boost not found", 2026-11-13).
